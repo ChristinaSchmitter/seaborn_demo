@@ -1,1 +1,2 @@
-ipythonnumpyseabornpandasmatplotlib
+ipythonnumpyseabornpandasmatplotlib
+openpyxl
