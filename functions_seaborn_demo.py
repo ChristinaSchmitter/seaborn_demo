@@ -89,26 +89,31 @@ def cat_plots(data, plot_type, x, y, plotting_colors, labels, hue = None, col = 
  
     
 
-def statistical_annotation(plot, data, comp_pairs, pvalues, x, y, hue = None, col = None):
+def statistical_annotation(plot, kind, data, comp_pairs, pvalues, x, y, hue = None, col = None):
     
-    """
-    Example inputs:
+    """    
+    comp_pairs, pvalues: 
+        Examples shape of input
         1 categorical variable:
-            comp_pairs = [[('Active'),('Passive')]]
-            pvalues    = [[0.04]]
+            comp_pairs = [[(x_i),(x_j)]]
+            pvalues    = [[pval]]
             
         2 categorical variables:
-            comp_pairs = [[('Active','0 ms'),('Active','150 ms')]]
-            pvalues    = [[0.01]] 
+            comp_pairs = [[(x_i,hue_i),(x_i,hue_j)],
+                          [(x_j,hue_i),(x_j,hue_j)]]
+            pvalues    = [[pval_pair1], [pval_pair2]] 
         
         3 categorical variables:
-            comp_pairs = [[('Visual','Active','0 ms'),('Visual','Active','150 ms')],
-                         [('Auditory', 'Active', '0 ms'),('Auditory', 'Active', '150 ms')]]
-            pvalues    = [[0.003], [0.04]]
+            comp_pairs = [[(col_i,x_i,hue_i),(col_i,x_i,hue_j)],
+                          [(col_j,x_i,hue_i),(col_i,x_i,hue_j)]]
+            pvalues    = [[pval_pair1], [pval_pair2]]
     """
     
-    if hue is None and col is None:     
-        data_avg = (data.groupby([x], sort = False).mean().reset_index()) 
+    if hue is None and col is None:   
+        if kind == 'bar':
+            data_avg = (data.groupby([x], sort = False).mean().reset_index()) 
+        elif kind in ['box', 'boxen', 'violin', 'strip', 'swarm']:
+            raise NotImplementedError()
 
         for ax in plot.axes.ravel():
             for i, comp in enumerate(comp_pairs):                      
@@ -121,8 +126,11 @@ def statistical_annotation(plot, data, comp_pairs, pvalues, x, y, hue = None, co
                                     line_height = 0, 
                                     line_offset_to_box = 0.1)
        
-    if hue is not None and col is None:   
-        data_avg = (data.groupby([x, hue], sort = False).mean().reset_index()) 
+    if hue is not None and col is None:  
+        if kind == 'bar':
+            data_avg = (data.groupby([x, hue], sort = False).mean().reset_index()) 
+        elif kind in ['box', 'boxen', 'violin', 'strip', 'swarm']:
+            raise NotImplementedError('Function is currently only working for plots of kind = bar')            
 
         for ax in plot.axes.ravel():            
             for i, comp in enumerate(comp_pairs):                          
