@@ -7,11 +7,163 @@ Plotting with Seaborn
 
 import seaborn as sns
 import matplotlib.pyplot as plt
+import numpy as np
+import scipy
+import pandas as pd
+from statannot import add_stat_annotation
 
 
-def cat_plots(data, plot_type, factor, measure, hue = None, col = None):
+
+def plot_sem(plot, data, x, y, hue = None, col = None):
+    
+    if hue is None:
+        data_avg = (data.groupby([x], sort = False)[y].agg([np.mean, scipy.stats.sem]).reset_index())
+    
+        for i, bar in enumerate(plot.ax.patches):    
+            cond   = data_avg[x].unique()[i]    
+            sem    = data_avg['sem'][data_avg[x] == cond].values
+            x_pos  = bar.get_x()
+            width  = bar.get_width()
+            height = bar.get_height()
+    
+            plt.errorbar(x = x_pos + width/2, y = height, yerr = sem, color = 'black', elinewidth = 2)
+                      
+    elif hue is not None:
+        
+        if col is None:
+            data_avg = (data.groupby([x, hue], sort = False)[y].agg([np.mean, scipy.stats.sem]).reset_index()) 
+        elif col is not None:
+            data_avg = (data.groupby([col, x, hue], sort = False)[y].agg([np.mean, scipy.stats.sem]).reset_index())   
+            
+        conds = [(x_i, hue_i) for hue_i in data_avg[hue].unique() for x_i in data_avg[x].unique()]
+               
+        for ax in plot.axes.ravel():
+            for i, bar in enumerate(ax.patches):    
+                
+                if col is None:
+                    sem  = data_avg['sem'][(data_avg[x]   == conds[i][0]) & \
+                                           (data_avg[hue] == conds[i][1])].values
+                elif col is not None:               
+                    sem  = data_avg['sem'][(data_avg[col] == ax.title.get_text()) & \
+                                           (data_avg[x]   == conds[i][0]) & \
+                                           (data_avg[hue] == conds[i][1])].values
+                x_pos  = bar.get_x()
+                width  = bar.get_width()
+                height = bar.get_height()
+                
+                ax.errorbar(x = x_pos + width/2, y = height, yerr = sem, color = 'black', elinewidth = 2)
+        
+              
+                
+
+def cat_plots(data, plot_type, x, y, plotting_colors, labels, hue = None, col = None):
+    
+    sns.set_style("whitegrid")
+    sns.set_context("paper", font_scale = 1.75)
+    
+    if hue is None: color = plotting_colors[x]
+    else:           color = plotting_colors[hue]
+
+    plot = sns.catplot(x = x, 
+                       y = y, 
+                       hue = hue,
+                       col = col,
+                       data = data, 
+                       kind = plot_type, 
+                       height = 6,
+                       palette = color,
+                       sharey = True)
+    
+    if hue is not None: plot._legend.set_title(labels[y])
+    
+    if col is not None:
+        plot.set_titles("{col_name}", fontsize = 15) 
+        plot.axes.flat[0].set_ylabel(labels[y])
+        for axis in range(2): plot.axes.flat[axis].set_xlabel(labels[x])
+    else:
+        plt.ylabel(labels[y])
+        plt.xlabel(labels[x])
+    
+    plt.show()
+     
+ 
+    
+
+def statistical_annotation(plot, data, comp_pairs, pvalues, x, y, hue = None, col = None):
+    
+    """
+    Example inputs:
+        1 categorical variable:
+            comp_pairs = [[('Active'),('Passive')]]
+            pvalues    = [[0.04]]
+            
+        2 categorical variables:
+            comp_pairs = [[('Active','0 ms'),('Active','150 ms')]]
+            pvalues    = [[0.01]] 
+        
+        3 categorical variables:
+            comp_pairs = [[('Visual','Active','0 ms'),('Visual','Active','150 ms')],
+                         [('Auditory', 'Active', '0 ms'),('Auditory', 'Active', '150 ms')]]
+            pvalues    = [[0.003], [0.04]]
+    """
+    
+    if hue is None and col is None:     
+        data_avg = (data.groupby([x], sort = False).mean().reset_index()) 
+
+        for ax in plot.axes.ravel():
+            for i, comp in enumerate(comp_pairs):                      
+                add_stat_annotation(ax, data = data_avg, x = x, y = y, hue = hue,
+                                    box_pairs = [comp], 
+                                    perform_stat_test = False, 
+                                    pvalues = pvalues[i],
+                                    text_format = 'star', 
+                                    loc = 'inside', 
+                                    line_height = 0, 
+                                    line_offset_to_box = 0.1)
+       
+    if hue is not None and col is None:   
+        data_avg = (data.groupby([x, hue], sort = False).mean().reset_index()) 
+
+        for ax in plot.axes.ravel():            
+            for i, comp in enumerate(comp_pairs):                          
+                add_stat_annotation(ax, data = data_avg, x = x, y = y, hue = hue,
+                                    box_pairs = [comp], 
+                                    perform_stat_test = False, 
+                                    pvalues = pvalues[i],
+                                    text_format = 'star', 
+                                    loc = 'inside', 
+                                    line_height = 0, 
+                                    line_offset_to_box = 0.1)
+
+    if col is not None:
+        for ax in plot.axes.ravel():
+            
+            for i, comp in enumerate(comp_pairs):                     
+                if ax.title.get_text() in comp[0]:                    
+                    data_avg = (data.groupby([col, x, hue], sort = False).mean().reset_index()) 
+                    data_avg = data_avg[data_avg[col] == ax.title.get_text()]
+                    
+                    cmp = [[tuple([item for item in cond if item != ax.title.get_text()]) for cond in comp]]
+                                        
+                    add_stat_annotation(ax, data = data_avg, x = x, y = y, hue = hue,
+                                        box_pairs = cmp, 
+                                        perform_stat_test = False, 
+                                        pvalues = pvalues[i],
+                                        text_format = 'star', 
+                                        loc = 'inside', 
+                                        line_height = 0, 
+                                        line_offset_to_box = 0.1)
+
+    
 
 
+
+if __name__ == "__main__":   
+    
+    
+    group_stats = pd.read_excel('group_stats.xlsx')
+    
+    
     plotting_colors = {'movement_type':       {'Active': (49/255,130/255,189/255), 'Passive':  (158/255,202/255,225/255)},
                        'adaptation_delay':    {'0 ms':   (253/255,174/255,97/255), '150 ms':   (215/255,25/255,28/255)},
                        'test_modality':       {'Visual': (223/255,194/255,125/255),'Auditory': (1/255,133/255,113/255)},
@@ -24,120 +176,16 @@ def cat_plots(data, plot_type, factor, measure, hue = None, col = None):
               'adaptation_delay':    'Adaptation delay',
               'test_modality':       'Test modality',
               'adaptation_modality': 'Adaptation modality'}
-
-    
-    sns.set_style("whitegrid")
-    sns.set_context("paper", font_scale = 1.75)
-    
-    if hue is None: color = plotting_colors[factor]
-    else:           color = plotting_colors[hue]
-
-    plot = sns.catplot(x = factor, 
-                       y = measure, 
-                       hue = hue,
-                       col = col,
-                       data = data, 
-                       kind = plot_type, 
-                       height = 6,
-                       palette = color,
-                       sharey = True)
-    
-    if hue is not None: plot._legend.set_title(labels[hue])
-    
-    if col is not None:
-        plot.set_titles("{col_name}", fontsize = 15) 
-        plot.axes.flat[0].set_ylabel(labels[measure])
-        for axis in range(2): plot.axes.flat[axis].set_xlabel(labels[factor])
-    else:
-        plt.ylabel(labels[measure])
-        plt.xlabel(labels[factor])
-    
-    plt.show()
- 
-    
- 
-    
-def plot_types(plot_type, data):
-    
-    if plot_type == 'estimate':
-        
-        fig, axes = plt.subplots(1, 2, figsize = (15, 5), sharey = False)
-        
-        sns.barplot(ax = axes[0], data = data, x = 'movement_type', y = 'thresholds', palette = 'crest')
-        axes[0].set_title('Barplot')
-        
-        sns.pointplot(ax = axes[1], data = data, x = 'movement_type', y = 'thresholds')
-        axes[1].set_title('Pointplot')
-        
-        for axis in range(2): axes[axis].set_xlabel('Movement type')
-        for axis in range(2): axes[axis].set_ylabel('Threshold [ms]') 
-        plt.tight_layout()    
-        plt.show()  
-        
-        
-    elif plot_type == 'distribution':
-        
-        fig, axes = plt.subplots(1, 3, figsize = (15, 5), sharey = False)
-        
-        sns.boxplot(ax = axes[0], data = data, x = 'movement_type', y = 'thresholds', palette = 'crest')
-        axes[0].set_title('Boxplot')
-        
-        sns.boxenplot(ax = axes[1], data = data, x = 'movement_type', y = 'thresholds', palette = 'crest')
-        axes[1].set_title('Boxenplot')
-        
-        sns.violinplot(ax = axes[2], data = data, x = 'movement_type', y = 'thresholds', palette = 'crest')
-        axes[2].set_title('Violinplot')
-        
-        for axis in range(3): axes[axis].set_xlabel('Movement type')
-        for axis in range(3): axes[axis].set_ylabel('Threshold [ms]')
-        plt.tight_layout()
-        plt.show()  
-        
-        
-    elif plot_type == 'scatter':
-        
-        fig, axes = plt.subplots(1, 2, figsize = (15, 5), sharey = False)
-        
-        sns.stripplot(ax = axes[0], data = data, x = 'movement_type', y = 'thresholds', palette = 'crest')
-        axes[0].set_title('Stripplot')
-        
-        sns.swarmplot(ax = axes[1], data = data, x = 'movement_type', y = 'thresholds', palette = 'crest')
-        axes[1].set_title('Swarmplot')
-        
-        for axis in range(2): axes[axis].set_xlabel('Movement type')
-        for axis in range(2): axes[axis].set_ylabel('Threshold [ms]')
-        plt.tight_layout()
-        plt.show()              
-    
-    
     
 
-def plot_dist(data, measure):    
-    
-    labels = {'movement_durations': 'Button press durations [ms]',
-              'movement_latencies': 'Button press latencies [ms]'}
-    
-    plot = sns.FacetGrid(data, row = 'participant', hue = 'participant', aspect = 10, height = 1.0, palette = 'crest')
-    
-    # add the densities kdeplots for each participant
-    plot.map(sns.kdeplot, measure, bw_adjust = 1, clip_on = False, fill = True, alpha = 1, linewidth = 1.5)
-        
-    # add a horizontal line for each plot
-    plot.map(plt.axhline, y = 0, lw = 2, clip_on = False)
 
-    for i, ax in enumerate(plot.axes.flat):
-        ax.text(data[measure].min() - 200, 0.002, 'P' + str(i+1), fontweight = 'bold', fontsize = 15, color = ax.lines[-1].get_color())
-    
-    # remove axes titles, yticks and spines
-    plot.set_titles("")
-    plot.set(yticks=[])
-    plot.despine(bottom = True, left = True)
-       
-    plt.xlabel(labels[measure], fontsize = 15, fontweight = 'bold')
-    plt.xticks(fontsize = 15, fontweight = 'bold')
-    
-    plt.show()
 
-    
-    
-    
+    cat_plots(data = group_stats, 
+              plot_type = 'violin', 
+              x = 'movement_type', 
+              y = 'thresholds', 
+              plotting_colors = plotting_colors, 
+              labels = labels, 
+              hue = 'adaptation_delay')
+             
+      
