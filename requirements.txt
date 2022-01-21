@@ -1,4 +1,5 @@
 ipythonnumpy
 scipyseabornpandasmatplotlib
 openpyxl
-statannot
+statannot
+statannotations
